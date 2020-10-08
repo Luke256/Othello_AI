@@ -37,6 +37,9 @@ class Othello:
             for j in i:
                 if j==0:
                     f=False
+                if f and isOK(i*8+j):
+                    f=False
+                    
         self.finish=f
         
         return
