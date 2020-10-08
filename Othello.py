@@ -21,6 +21,7 @@ class Othello:
 
         self.turn=1
         self.finish=False
+        self.Pass=False
 
     def step(self,act):
         ok=self.isOK(act)
@@ -33,12 +34,20 @@ class Othello:
             print("You can't put on {}".format(act))
 
         f=True
+        self.Pass=True
         for i in self.field:
             for j in i:
                 if j==0:
                     f=False
                 if f and isOK(i*8+j):
                     f=False
+                    self.Pass=False
+                self.turn=3-self.turn
+                if f and isOK(i*8+j):
+                    f=False
+                self.turn=3-self.turn
+
+                
                     
         self.finish=f
         
