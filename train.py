@@ -82,9 +82,6 @@ print("学習用環境初期化中...")
 env=Othello()
 print("完了")
 
-# print(state)
-# print(state.shape)
-
 
 for epoch in range(150):
     print("**********")
