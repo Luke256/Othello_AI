@@ -23,6 +23,8 @@ class Othello:
         self.finish=False
         self.Pass=False
 
+        return 
+
     def step(self,act):
         ok=self.isOK(act)
         if ok:
@@ -52,6 +54,23 @@ class Othello:
         self.finish=f
         
         return
+
+    def reset(self):
+        self.field=[
+            [0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,0,0],
+            [0,0,0,1,2,0,0,0],
+            [0,0,0,2,1,0,0,0],
+            [0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,0,0]]
+
+        self.turn=1
+        self.finish=False
+        self.Pass=False
+        return
+
 
     def isOK(self,act,shift=False):
         vec=[-1,0,1]
