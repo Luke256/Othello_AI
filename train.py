@@ -20,13 +20,17 @@ nb_actions = env.action_space.n
 
 model=Sequential()
 model.add(Flatten(input_shape=(1,) + env.observation_space.shape))
-model.add(Dense(units=128,activation="sigmoid"))
+model.add(Reshape((8,8,1)))
+model.add(Conv2D(filters=64,kernel_size=(3,3),activation="relu"))
+model.add(Conv2D(filters=64,kernel_size=(3,3),activation="relu"))
+model.add(Flatten())
+model.add(Dense(units=128,activation="relu"))
 model.add(Dense(units=128,activation="relu"))
 model.add(Dense(units=nb_actions,activation="linear"))
 
 model.summary()
 
-memory=SequentialMemory(limit=50000,window_length=1)
+memory=SequentialMemory(limit=10000,window_length=1)
 
 policy=EpsGreedyQPolicy(eps=0.1)
 dqn = DQNAgent(model=model, nb_actions=nb_actions, memory=memory, nb_steps_warmup=100, target_model_update=1e-2, policy=policy)
@@ -73,7 +77,7 @@ plt.show()
 
 
 json_string=dqn.model.to_json()
-open('test.json', 'w').write(json_string)
+open('double conv.json', 'w').write(json_string)
 
 # After training is done, we save the final weights.
-dqn.save_weights('test.h5f5', overwrite=True)
+dqn.save_weights('double conv.h5f5', overwrite=True)

@@ -116,7 +116,6 @@ class Othello(gym.core.Env):
             else:
                 reward+=(able_put[0])+(self.white)
         
-        reward/=64
                 
         if wrong:
             reward=-1
