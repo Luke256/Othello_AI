@@ -1,0 +1,3 @@
+TFを使ってA３Cを実装する
+https://qiita.com/sugulu_Ogawa_ISID/items/acbc909dd9b74b043e45
+（Gymは引き続き使えるがそのほかは全て書き直し）
