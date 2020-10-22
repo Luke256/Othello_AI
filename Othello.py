@@ -50,6 +50,7 @@ class Othello(gym.core.Env):
     def step(self,act):
         reward=0
         wrong=False
+        info = {}
         #盤面更新
         ok=self.isOK(act)
         if ok:
@@ -59,7 +60,6 @@ class Othello(gym.core.Env):
             reward+=1
         else:
             # print("You can't put on {}".format(act))
-            reward-=3
             wrong=True
             
             
@@ -96,26 +96,36 @@ class Othello(gym.core.Env):
                     f=False
                     able_put[2-self.turn]+=1
                 self.turn=3-self.turn
-                
-                if j==1 and (index_i==0 or index_i==7 or index_j==0 or index_j==7): #端は得点高め
-                    reward+=0.05
-                    if(index_i==0 or index_i==7 )and( index_j==0 or index_j==7):
-                        reward+=0.15
             
         self.finish=f
         
         #報酬計算
         try:
             if self.turn==1:
-                reward+=(self.black/self.white)#+(able_put[1]/able_put[0])
+                reward+=(self.black/self.white)/64
             else:
-                reward+=(self.white/self.black)#+(able_put[0]/able_put[1])
+                reward+=(self.white/self.black)/64
         except ZeroDivisionError:
             if self.turn==1:
-                reward+=(able_put[1])+(self.black)
+                reward+=(self.black)/64
             else:
-                reward+=(able_put[0])+(self.white)
+                reward+=(self.white)/64
         
+        # 角は常に重視
+        #-10手目：真ん中の4*4を重視
+        #11-50：エッジの部分重視
+        #51-64 :総数重視
+        
+        reward=0
+        if self.black+self.white<10:
+            for i in self.field[2:6]:
+                for j in i[2:6]:
+                    if j==self.turn:
+                        reward+=0.1
+        elif self.black+self.white<50:
+            batch=self.field[0:2][2:6]
+            
+                        
                 
         if wrong:
             reward=0
@@ -124,9 +134,20 @@ class Othello(gym.core.Env):
         state=np.array(self.field)
         state=np.reshape(state,(64))
 
+        if not wrong:
+            if(self.black>self.white):
+                info["result"]="black"
+            elif (self.black<self.white):
+                info["result"]="white"
+            else:
+                info["result"]="draw"
+                
+            if not self.finish:
+                info["result"]="playing"
+        else:
+            info["result"]="wrong"
 
-
-        return state,reward,self.finish,{}
+        return state,reward,self.finish,info
 
     def reset(self):
         self.field=[

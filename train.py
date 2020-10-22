@@ -8,11 +8,20 @@ from keras.utils import plot_model
 from keras import backend as K
 import os
 import numpy as np
+
+from Othello import Othello
+import copy,sys
+
+##　変更するべき点
+# env設定(グローバル・Envriomentクラス)
+# 終了判定処理
+# ネットワーク(LocalBrain・ParameterServer)
+
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'    # TensorFlow高速化用のワーニングを表示させない
 
 # -- constants of Game
 ENV = 'CartPole-v0'
-env = gym.make(ENV)
+env = Othello()
 NUM_STATES = env.observation_space.shape[0]     # CartPoleは4状態
 NUM_ACTIONS = env.action_space.n        # CartPoleは、右に左に押す2アクション
 NONE_STATE = np.zeros(NUM_STATES)
@@ -29,7 +38,7 @@ GAMMA = 0.99
 N_STEP_RETURN = 5
 GAMMA_N = GAMMA ** N_STEP_RETURN
 
-N_WORKERS = 8   # スレッドの数
+N_WORKERS = 10   # スレッドの数
 Tmax = 10   # 各スレッドの更新ステップ間隔
 
 # ε-greedyのパラメータ
@@ -51,11 +60,17 @@ class ParameterServer:
     # 関数名がアンダースコア2つから始まるものは「外部から参照されない関数」、「1つは基本的に参照しない関数」という意味
     def _build_model(self):     # Kerasでネットワークの形を定義します
         l_input = Input(batch_shape=(None, NUM_STATES))
-        l_dense = Dense(16, activation='relu')(l_input)
-        out_actions = Dense(NUM_ACTIONS, activation='softmax')(l_dense)
-        out_value = Dense(1, activation='linear')(l_dense)
+        l_reshape=Reshape((8,8,1))(l_input)
+        l_conv1=Conv2D(filters=64,kernel_size=(3,3),activation="relu")(l_reshape)
+        l_conv2=Conv2D(filters=64,kernel_size=(3,3),activation="relu")(l_conv1)
+        l_flatten=Flatten()(l_conv2)
+        l_dense1 = Dense(128, activation='relu')(l_flatten)
+        l_dense2 = Dense(128, activation='relu')(l_dense1)
+        out_actions = Dense(NUM_ACTIONS, activation='softmax')(l_dense2)
+        out_value = Dense(1, activation='linear')(l_dense2)
         model = Model(inputs=[l_input], outputs=[out_actions, out_value])
-        plot_model(model, to_file='A3C.png', show_shapes=True)  # Qネットワークの可視化
+        # plot_model(model, to_file='A3C.png', show_shapes=True)  # Qネットワークの可視化
+        model.summary()
         return model
 
 
@@ -70,9 +85,14 @@ class LocalBrain:
 
     def _build_model(self):     # Kerasでネットワークの形を定義します
         l_input = Input(batch_shape=(None, NUM_STATES))
-        l_dense = Dense(16, activation='relu')(l_input)
-        out_actions = Dense(NUM_ACTIONS, activation='softmax')(l_dense)
-        out_value = Dense(1, activation='linear')(l_dense)
+        l_reshape=Reshape((8,8,1))(l_input)
+        l_conv1=Conv2D(filters=64,kernel_size=(3,3),activation="relu")(l_reshape)
+        l_conv2=Conv2D(filters=64,kernel_size=(3,3),activation="relu")(l_conv1)
+        l_flatten=Flatten()(l_conv2)
+        l_dense1 = Dense(128, activation='relu')(l_flatten)
+        l_dense2 = Dense(128, activation='relu')(l_dense1)
+        out_actions = Dense(NUM_ACTIONS, activation='softmax')(l_dense2)
+        out_value = Dense(1, activation='linear')(l_dense2)
         model = Model(inputs=[l_input], outputs=[out_actions, out_value])
         model._make_predict_function()  # have to initialize before threading
         return model
@@ -214,11 +234,13 @@ class Agent:
 class Environment:
     total_reward_vec = np.zeros(10)  # 総報酬を10試行分格納して、平均総報酬をもとめる
     count_trial_each_thread = 0     # 各環境の試行数
+    
+    results=[]
 
     def __init__(self, name, thread_type, parameter_server):
         self.name = name
         self.thread_type = thread_type
-        self.env = gym.make(ENV)
+        self.env = Othello()
         self.agent = Agent(name, parameter_server)    # 環境内で行動するagentを生成
 
     def run(self):
@@ -234,8 +256,8 @@ class Environment:
         R = 0
         step = 0
         while True:
+            self.env.render()   # 学習後のテストでは描画する(そんなわけない)
             if self.thread_type is 'test':
-                self.env.render()   # 学習後のテストでは描画する
                 time.sleep(0.1)
 
             a = self.agent.act(s)   # 行動を決定
@@ -243,33 +265,34 @@ class Environment:
             step += 1
             frames += 1     # セッショントータルの行動回数をひとつ増やします
 
-            r = 0
             if done:  # terminal state
                 s_ = None
-                if step < 199:
-                    r = -1
-                else:
-                    r = 1
 
             # Advantageを考慮した報酬と経験を、localBrainにプッシュ
             self.agent.advantage_push_local_brain(s, a, r, s_)
 
             s = s_
             R += r
-            if done or (step % Tmax == 0):  # 終了時がTmaxごとに、parameterServerの重みを更新し、それをコピーする
+            if (self.count_trial_each_thread % Tmax == 0):  # 終了時がTmaxごとに、parameterServerの重みを更新し、それをコピーする
                 if not(isLearned) and self.thread_type is 'learning':
                     self.agent.brain.update_parameter_server()
                     self.agent.brain.pull_parameter_server()
 
             if done:
-                self.total_reward_vec = np.hstack((self.total_reward_vec[1:], step))  # トータル報酬の古いのを破棄して最新10個を保持
+                self.total_reward_vec = np.hstack((self.total_reward_vec[1:], R))  # トータル報酬の古いのを破棄して最新10個を保持
                 self.count_trial_each_thread += 1  # このスレッドの総試行回数を増やす
+                if info["result"]=="black":
+                    self.results.append(1)
+                else:
+                    self.results.append(0)
+                if(self.count_trial_each_thread>10):
+                    self.results.pop()
                 break
         # 総試行数、スレッド名、今回の報酬を出力
-        print("スレッド："+self.name + "、試行数："+str(self.count_trial_each_thread) + "、今回のステップ:" + str(step)+"、平均ステップ："+str(self.total_reward_vec.mean()))
+        print("スレッド："+self.name+ "、試行数：{}、今回の報酬：{:.05f} (".format(self.count_trial_each_thread,float(R))+info["result"].zfill(6)+")、平均報酬：{:.08f}、勝率：{:.08f}".format(self.total_reward_vec.mean(),sum(self.results)/len(self.results)))
 
-        # スレッドで平均報酬が一定を越えたら終了
-        if self.total_reward_vec.mean() > 199:
+        # スレッドで平均報酬が一定を越えたら終了(この場合は勝率が75％を超える)
+        if sum(self.results)/len(self.results) > 0.75:
             isLearned = True
             time.sleep(2.0)     # この間に他のlearningスレッドが止まります
             self.agent.brain.push_parameter_server()    # この成功したスレッドのパラメータをparameter-serverに渡します
@@ -310,7 +333,7 @@ with tf.device("/cpu:0"):
     threads = []     # 並列して走るスレッド
     # 学習するスレッドを用意
     for i in range(N_WORKERS):
-        thread_name = "local_thread"+str(i+1)
+        thread_name = "local_thread"+str(i+1).zfill(3)
         threads.append(Worker_thread(thread_name=thread_name, thread_type="learning", parameter_server=parameter_server))
 
     # 学習後にテストで走るスレッドを用意
