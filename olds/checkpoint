@@ -1,0 +1,2 @@
+model_checkpoint_path: "double conv.h5f5"
+all_model_checkpoint_paths: "double conv.h5f5"

@@ -33,7 +33,7 @@ model.summary()
 memory=SequentialMemory(limit=10000,window_length=1)
 
 policy=EpsGreedyQPolicy(eps=0.1)
-dqn = DQNAgent(model=model, nb_actions=nb_actions, memory=memory, nb_steps_warmup=100, target_model_update=1e-2, policy=policy)
+dqn = DQNAgent(model=model, nb_actions=nb_actions, memory=memory, nb_steps_warmup=100, target_model_update=1e-2, policy=policy,gamma=.8)
 dqn.compile(SGD(),metrics=["acc"])
 
 history=dqn.fit(env,nb_steps=60000,visualize=True,verbose=1,nb_max_episode_steps=64)

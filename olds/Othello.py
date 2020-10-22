@@ -118,13 +118,14 @@ class Othello(gym.core.Env):
         
                 
         if wrong:
-            reward=-1
+            reward=0
             self.finish=True
                 
         state=np.array(self.field)
         state=np.reshape(state,(64))
-                
-            
+
+
+
         return state,reward,self.finish,{}
 
     def reset(self):
