@@ -40,7 +40,7 @@ class Othello(gym.core.Env):
         low=np.array(low)
         high=[]
         for i in range(64):
-            high.append(2)
+            high.append(3)
         high=np.array(high)
         
         self.observation_space = gym.spaces.Box(low=low, high=high)
@@ -62,15 +62,34 @@ class Othello(gym.core.Env):
             # print("You can't put on {}".format(act))
             wrong=True
             
+        t=False
+        
+        self.turn=3-self.turn
+        for index_i,i in enumerate(self.field):
+            for index_j,j in enumerate(i):
+                if self.isOK(index_i*8+index_j):
+                    t=True
+        self.turn=3-self.turn
             
-        if not wrong:
+        if (not wrong):
             #ランダムに置く
-            self.turn=3-self.turn
-            r=random.randrange(0,64)
-            while(not self.isOK(r)):
+            while(t):
+                self.turn=3-self.turn
                 r=random.randrange(0,64)
-            self.isOK(r,True)
-            self.turn=3-self.turn
+                while(not self.isOK(r)):
+                    r=random.randrange(0,64)
+                self.isOK(r,True)
+                
+                t=True
+                
+                self.turn=3-self.turn
+                for index_i,i in enumerate(self.field):
+                    for index_j,j in enumerate(i):
+                        if self.isOK(index_i*8+index_j):
+                            t=False
+                self.turn=3-self.turn
+                
+                self.turn=3-self.turn
             
         #石を数える
         self.black=self.white=0
@@ -100,38 +119,63 @@ class Othello(gym.core.Env):
         self.finish=f
         
         #報酬計算
-        try:
-            if self.turn==1:
-                reward+=(self.black/self.white)/64
-            else:
-                reward+=(self.white/self.black)/64
-        except ZeroDivisionError:
-            if self.turn==1:
-                reward+=(self.black)/64
-            else:
-                reward+=(self.white)/64
         
-        # 角は常に重視
+        # 角は常に重視(場合分けなし)
         #-10手目：真ん中の4*4を重視
         #11-50：エッジの部分重視
         #51-64 :総数重視
-        
-        reward=0
-        if self.black+self.white<10:
-            for i in self.field[2:6]:
-                for j in i[2:6]:
-                    if j==self.turn:
-                        reward+=0.1
-        elif self.black+self.white<50:
-            batch=self.field[0:2][2:6]
+
+
+        for i in self.field[2:6]:
+            for j in i[2:6]:
+                if j==self.turn:
+                    reward+=0.0625
+                    
+        for i in range(4):
+            batch=self.field[0][2:6]
+            reward+=batch.count(self.turn)*0.125
+            if batch.count(3-self.turn)==0:
+                if self.field[0][1]==self.turn:
+                    reward+=0.1
+                if self.field[0][6]==self.turn:
+                    reward+=0.1
+                    
+            self.field=[list(x) for x in zip(*self.field)][-1::-1]
             
-                        
+        reward+=(self.black/max(self.white,1))
+            
+        if self.field[0][0]==1:
+            reward+=0.1
+        elif self.field[0][0]==2:
+            reward-=0.1
+        
+        if self.field[0][7]==1:
+            reward+=0.1
+        elif self.field[0][7]==2:
+            reward-=0.1
+        
+        if self.field[7][0]==1:
+            reward+=0.1
+        elif self.field[7][0]==2:
+            reward-=0.1
+        
+        if self.field[7][7]==1:
+            reward+=0.1
+        elif self.field[7][7]==2:
+            reward-=0.1
+            
+        # 報酬計算終わり      
                 
         if wrong:
             reward=0
             self.finish=True
                 
         state=np.array(self.field)
+        for index_i,i in enumerate(self.field):
+            for index_j,j in enumerate(i):
+                if(self.isOK(index_i*8+index_j)):
+                    state[index_i][index_j]=3
+                
         state=np.reshape(state,(64))
 
         if not wrong:
@@ -166,6 +210,10 @@ class Othello(gym.core.Env):
         self.white=2
         self.black=2
         state=np.array(self.field)
+        for index_i,i in enumerate(self.field):
+            for index_j,j in enumerate(i):
+                if(self.isOK(index_i*8+index_j)):
+                    state[index_i][index_j]=3
         state=np.reshape(state,(64))
         return state
     
@@ -223,8 +271,6 @@ class Othello(gym.core.Env):
 
 if __name__=="__main__":
     a=Othello()
-    for i in a.field:
-        print(i)
-        
-    for i in range(64):
-        a.step(i)
+    state=a.reset()
+    state=state.reshape((8,8))
+    print(state)

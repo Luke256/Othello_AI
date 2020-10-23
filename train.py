@@ -61,9 +61,8 @@ class ParameterServer:
     def _build_model(self):     # Kerasでネットワークの形を定義します
         l_input = Input(batch_shape=(None, NUM_STATES))
         l_reshape=Reshape((8,8,1))(l_input)
-        l_conv1=Conv2D(filters=64,kernel_size=(3,3),activation="relu")(l_reshape)
-        l_conv2=Conv2D(filters=64,kernel_size=(3,3),activation="relu")(l_conv1)
-        l_flatten=Flatten()(l_conv2)
+        l_conv1=Conv2D(filters=128,kernel_size=(3,3),activation="relu")(l_reshape)  # 8*8*1 -> 6*6*64
+        l_flatten=Flatten()(l_conv1)
         l_dense1 = Dense(128, activation='relu')(l_flatten)
         l_dense2 = Dense(128, activation='relu')(l_dense1)
         out_actions = Dense(NUM_ACTIONS, activation='softmax')(l_dense2)
@@ -86,9 +85,8 @@ class LocalBrain:
     def _build_model(self):     # Kerasでネットワークの形を定義します
         l_input = Input(batch_shape=(None, NUM_STATES))
         l_reshape=Reshape((8,8,1))(l_input)
-        l_conv1=Conv2D(filters=64,kernel_size=(3,3),activation="relu")(l_reshape)
-        l_conv2=Conv2D(filters=64,kernel_size=(3,3),activation="relu")(l_conv1)
-        l_flatten=Flatten()(l_conv2)
+        l_conv1=Conv2D(filters=128,kernel_size=(3,3),activation="relu")(l_reshape)  # 8*8*1 -> 6*6*64
+        l_flatten=Flatten()(l_conv1)
         l_dense1 = Dense(128, activation='relu')(l_flatten)
         l_dense2 = Dense(128, activation='relu')(l_dense1)
         out_actions = Dense(NUM_ACTIONS, activation='softmax')(l_dense2)
@@ -256,9 +254,12 @@ class Environment:
         R = 0
         step = 0
         while True:
-            self.env.render()   # 学習後のテストでは描画する(そんなわけない)
             if self.thread_type is 'test':
+                self.env.render()   # 学習後のテストでは描画する(そんなわけない)
                 time.sleep(0.1)
+            
+            if self.name=="local_thread001":
+                self.env.render()
 
             a = self.agent.act(s)   # 行動を決定
             s_, r, done, info = self.env.step(a)   # 行動を実施
@@ -273,7 +274,7 @@ class Environment:
 
             s = s_
             R += r
-            if (self.count_trial_each_thread % Tmax == 0):  # 終了時がTmaxごとに、parameterServerの重みを更新し、それをコピーする
+            if done or (self.count_trial_each_thread % Tmax == 0):  # 終了時かTmaxごとに、parameterServerの重みを更新し、それをコピーする
                 if not(isLearned) and self.thread_type is 'learning':
                     self.agent.brain.update_parameter_server()
                     self.agent.brain.pull_parameter_server()
@@ -281,6 +282,7 @@ class Environment:
             if done:
                 self.total_reward_vec = np.hstack((self.total_reward_vec[1:], R))  # トータル報酬の古いのを破棄して最新10個を保持
                 self.count_trial_each_thread += 1  # このスレッドの総試行回数を増やす
+                
                 if info["result"]=="black":
                     self.results.append(1)
                 else:
